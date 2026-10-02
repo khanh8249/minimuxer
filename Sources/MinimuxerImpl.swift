@@ -294,7 +294,7 @@ final internal class MinimuxerImpl: MinimuxerAPI {
         return MinimuxerError.connectionModeNotConfigured("Connection mode not configured. Supported modes: \(modes)")
     }
 
-    private func restartMuxerServer() async throws.service(MinimuxerError) {
+    private func restartMuxerServer() async throws(MinimuxerError) {
         guard self.gateway.requiresUsbmuxd else { return }
         guard let pairingDict = selfPort.gateway.pairingDataDict else {
             debugLog("[minimuxer] ERROR: Pairing DICT missing...ignoring restart MuxerServer")
