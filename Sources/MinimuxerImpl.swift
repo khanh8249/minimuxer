@@ -1,5 +1,5 @@
 //
-//  self.swift
+//  MinimuxerImpl.swift
 //  Minimuxer
 //
 //  Created by Magesh K on 4/7/26.
@@ -12,7 +12,7 @@ import ZIPFoundation
 internal import DeviceGatewayAPI
 internal import MinimuxerCommon
 
-private enum MinimuxerStatus{
+private enum MinimuxerStatus {
     case started, inprogress, stopped
 }
 
@@ -34,7 +34,7 @@ final internal class MinimuxerImpl: MinimuxerAPI {
     let endpoint: DeviceEndpoint
     let connectionManager: DeviceConnectionManager
     let heartbeat: HeartbeatService
-    
+
     var activeProtocol: PairingProtocol {
         gateway.pairingFileType
     }
@@ -73,35 +73,36 @@ final internal class MinimuxerImpl: MinimuxerAPI {
         var mountTask: Task<Bool, Error>? = nil
         var lastDocsPath: String? = nil
         var preferredProtocol: PairingProtocol? = nil
-        
+
         func with<T>(_ body: (isolated State) throws -> T) rethrows -> T {
             try body(self)
         }
     }
     private let state = State()
-    
+
     var pairingFileType: PairingProtocol { self.gateway.pairingFileType }
-    
+
     var isLoggingEnabled: Bool { MinimuxerLogging.isLoggingEnabled }
-    
+
     var isPairingFileLoaded: Bool {
         return pairingFileType != .unknown
     }
 
-
     func describeError(_ error: MinimuxerError) -> String {
         return error.description
     }
-    
+
     func getConnectionMode() async -> DeviceConnectionMode {
         await self.connectionManager.getPreferredConnectionMode()
     }
-    
+
     func bindConnectionConfig(_ binding: ConnectionConfigBinding) async {
         await self.connectionManager.bindConnectionConfig(binding)
         await self.network.refreshEndpoint()
     }
-    
+
+    // MARK: - isReady
+
     func isReady(withNetworkCheck: Bool, withDDIMountCheck: Bool) async -> Result<Bool, MinimuxerError> {
         if !isPairingFileLoaded {
             debugLog("[minimuxer] minimuxer not ready: pairing file not loaded")
@@ -114,13 +115,21 @@ final internal class MinimuxerImpl: MinimuxerAPI {
             return .failure(.notStarted("Minimuxer has not been started"))
         }
 
+        // ⬇️ NEW: Heartbeat gate — phải chạy TRƯỚC mọi check khác.
+        // Nếu Lockdown session chưa ổn định (heartbeat chưa thành công),
+        // mọi thao tác tiếp theo (fetchUDID, mountDDI, install, ...) sẽ
+        // gây UnexpectedEof trên iOS 16 trở xuống.
+        if !self.heartbeat.lastBeatSuccessful {
+            debugLog("[minimuxer] minimuxer not ready: heartbeat has not succeeded yet")
+            return .failure(.noDevice(
+                "Heartbeat has not succeeded yet — Lockdown session is not stable"
+            ))
+        }
+
         // check connection status first
         if withNetworkCheck && !(
-            self.network.isWifiSatisfied   /* ||
-            self.network.isWiredSatisfied     ||
-            self.network.isUsbSatisfied       ||
-            self.network.isBridgeSatisfied */
-        ){
+            self.network.isWifiSatisfied
+        ) {
             debugLog("[minimuxer] minimuxer not ready: no network connection")
             return .failure(.noConnection("No wifi interface satisfied"))
         }
@@ -132,7 +141,7 @@ final internal class MinimuxerImpl: MinimuxerAPI {
         switch connectionMode {
             case .notConfigured:
                 return .failure(connectionNotConfiguredError())
-            
+
             case .localVPN:
                 let uTunPresent = net.isUTunAvailable
                 if !uTunPresent {
@@ -140,7 +149,6 @@ final internal class MinimuxerImpl: MinimuxerAPI {
                     return .failure(.noVPN("No utun interface detected — LocalDevVPN is not connected"))
                 }
 
-                // check iKEv2 too if in lockdown mode and ios >= 26.4
                 if self.gateway.pairingFileType != .rppairing && !net.isIKEv2IPSecAvailable {
                     if #available(iOS 26.4, *) {
                         debugLog("[minimuxer] minimuxer not ready: no ipsec interface (required for lockdown on iOS 26.4+)")
@@ -152,14 +160,12 @@ final internal class MinimuxerImpl: MinimuxerAPI {
                 break
         }
 
-        // check if pairing file is loaded
         let pairingType = pairingFileType
         if pairingType == .unknown {
             debugLog("[minimuxer] minimuxer not ready: no valid pairing file loaded")
             return .failure(.pairingNotLoaded("No valid pairing file has been loaded in Minimuxer"))
         }
 
-        // then check if device is ready
         let deviceIp: String
         do {
             deviceIp = try await self.endpoint.ip()
@@ -175,7 +181,7 @@ final internal class MinimuxerImpl: MinimuxerAPI {
                     return .failure(connectionNotConfiguredError())
             }
         }
-        
+
         let peerReachable = testDeviceConnection(ifaddr: deviceIp)
         if !peerReachable {
             switch connectionMode {
@@ -218,7 +224,7 @@ final internal class MinimuxerImpl: MinimuxerAPI {
         }
 
         return .success(true)
-    } 
+    }
 
     private func runWithChecks<T: Sendable>(_ context: String, catchAll: @escaping (String) -> MinimuxerError, action: @escaping @Sendable () async throws -> T) async throws(MinimuxerError) -> T {
         do {
@@ -244,7 +250,7 @@ final internal class MinimuxerImpl: MinimuxerAPI {
     func setDeviceProbeTimeout(_ timeoutMs: Int) {
         self.connectionManager.deviceProbeTimeout = timeoutMs
     }
-    
+
     private func retargetUsbmuxdAddr() {
         verboseLog("[minimuxer] unsetenv(USBMUXD_SOCKET_ADDRESS)")
         unsetenv(MinimuxerConstants.usbmuxdEnvKey)
@@ -253,14 +259,13 @@ final internal class MinimuxerImpl: MinimuxerAPI {
         let value = String(cString: getenv(MinimuxerConstants.usbmuxdEnvKey))
         verboseLog("[minimuxer] getenv(USBMUXD_SOCKET_ADDRESS) = \(value)")
     }
-    
-    private func connectionNotConfiguredError() -> MinimuxerError{
+
+    private func connectionNotConfiguredError() -> MinimuxerError {
         let modes: [DeviceConnectionMode] = [.localVPN, .remoteServer]
         debugLog("[minimuxer] minimuxer not ready: connection mode not configured. Supported modes: \(modes)")
         return MinimuxerError.connectionModeNotConfigured("Connection mode not configured. Supported modes: \(modes)")
     }
-    
-    
+
     private func restartMuxerServer() async throws(MinimuxerError) {
         guard self.gateway.requiresUsbmuxd else { return }
         guard let pairingDict = self.gateway.pairingDataDict else {
@@ -274,7 +279,6 @@ final internal class MinimuxerImpl: MinimuxerAPI {
             throw MinimuxerError.invalidPairing(protocol: activeProtocol, reason: "Pairing file is missing UDID value")
         }
 
-        // restart muxer
         await self.proxyServer.stop()
         do {
             try await self.proxyServer.start(udid: deviceUDID)
@@ -282,9 +286,9 @@ final internal class MinimuxerImpl: MinimuxerAPI {
             throw (error as? MinimuxerError) ?? MinimuxerError.connect("\(error)")
         }
     }
-    
-    
-    
+
+    // MARK: - Lifecycle
+
     func start(pairingFile: String, mountPath: String, preferred: PairingProtocol?) async throws(MinimuxerError) {
         let connectionMode = await getConnectionMode()
         if DeviceConnectionMode.notConfigured == connectionMode {
@@ -293,7 +297,7 @@ final internal class MinimuxerImpl: MinimuxerAPI {
         await self.network.start()
 
         // actor serialization scope
-        await state.with{
+        await state.with {
             $0.status = .inprogress     // mark inprogress
             $0.lastDocsPath = mountPath // record the mountPath
             $0.preferredProtocol = preferred
@@ -308,14 +312,27 @@ final internal class MinimuxerImpl: MinimuxerAPI {
             // start our fake usbmuxd server for clients if required
             try await restartMuxerServer()
         }
-        
+
+        // ⬇️ NEW: start heartbeat TRƯỚC khi báo ready.
+        // Trên iOS 16 trở xuống, Lockdown session cần heartbeat liên tục
+        // (Marco/Polo) để giữ kết nối sống. Nếu không start, session sẽ
+        // bị device đóng sau vài giây → UnexpectedEof khi fetchUDID/mountDDI.
+        await self.heartbeat.start()
+
+        // ⬇️ NEW: gate — chờ heartbeat đầu tiên thành công (mặc định 10s).
+        // Nếu timeout, throw để caller biết pairing/VPN có vấn đề.
+        try await awaitFirstHeartbeat()
+
         // mark ready!
-        await state.with{
+        await state.with {
             $0.status = .started
         }
     }
 
     func stop() async throws(MinimuxerError) {
+        // ⬇️ NEW: dừng heartbeat trước tiên.
+        await self.heartbeat.stop()
+
         // actor serialization scope
         let oldTask = await state.with { state -> Task<Bool, Error>? in
             state.status = .inprogress  // mark inprogress
@@ -336,13 +353,45 @@ final internal class MinimuxerImpl: MinimuxerAPI {
             $0.status = .stopped
         }
     }
-    
+
+    // ⬇️ NEW: helper chờ heartbeat đầu tiên.
+    /// Chờ heartbeat đầu tiên thành công, tối đa `timeout` giây.
+    /// Throw `.noDevice(...)` nếu timeout để tránh báo ready sai.
+    private func awaitFirstHeartbeat(
+        timeout: TimeInterval = MinimuxerConstants.heartbeatInitialTimeoutSeconds
+    ) async throws(MinimuxerError) {
+        let deadline = Date().addingTimeInterval(timeout)
+        let pollIntervalNs: UInt64 = 100_000_000 // 100ms
+
+        verboseLog("[minimuxer] Awaiting first heartbeat (timeout: \(timeout)s)...")
+
+        while Date() < deadline {
+            if Task.isCancelled {
+                throw MinimuxerError.close("start() was cancelled while awaiting heartbeat")
+            }
+
+            if self.heartbeat.lastBeatSuccessful {
+                verboseLog("[minimuxer] First heartbeat succeeded")
+                return
+            }
+
+            try? await Task.sleep(nanoseconds: pollIntervalNs)
+        }
+
+        debugLog("[minimuxer] First heartbeat timed out after \(timeout)s")
+        throw MinimuxerError.noDevice(
+            "Heartbeat did not succeed within \(timeout)s — device may be unreachable " +
+            "or pairing file is invalid. Check LocalDevVPN and pairing file."
+        )
+    }
+
     private func restartWith(pairingFile: String, op: String) async throws(MinimuxerError) {
         let (mountPath, preferred) = await state.with { ($0.lastDocsPath, $0.preferredProtocol) }
         guard let mountPath else {
             let activeProtocol = self.gateway.pairingFileType
             throw MinimuxerError.mount(protocol: activeProtocol, reason: "start() should be invoked before requesting \(op). cause: lastDocsPath is nil")
         }
+        // stop() sẽ tự dừng heartbeat; start() sẽ tự start lại.
         try await stop()
         try await start(pairingFile: pairingFile, mountPath: mountPath, preferred: preferred)
     }
@@ -351,8 +400,8 @@ final internal class MinimuxerImpl: MinimuxerAPI {
         verboseLog("[minimuxer] Restarting services...")
         let activeProtocol = self.gateway.pairingFileType
         guard let pairingData = self.gateway.pairingFileData,
-              let pairingFile = String(data: pairingData, encoding: .utf8) else
-        {
+              let pairingFile = String(data: pairingData, encoding: .utf8)
+        else {
             debugLog("[minimuxer] restart: no existing pairing file — cannot restart")
             throw MinimuxerError.invalidPairing(protocol: activeProtocol, reason: "No existing pairing file found in gateway during restart")
         }
@@ -364,7 +413,7 @@ final internal class MinimuxerImpl: MinimuxerAPI {
         verboseLog("[minimuxer] Reinitializing with new pairing file...")
         try await restartWith(pairingFile: pairingFile, op: "reinitializePairingData")
     }
-  
+
     func testDeviceConnection(ifaddr: String, timeout: Int) -> Bool {
         return NetworkUtils.testTCP(ip: ifaddr, port: self.gateway.servicePort, timeoutMs: timeout)
     }
@@ -374,8 +423,7 @@ final internal class MinimuxerImpl: MinimuxerAPI {
         if isMounted {
             return
         }
-        guard let mountPath = await state.lastDocsPath else
-        {
+        guard let mountPath = await state.lastDocsPath else {
             let activeProtocol = self.gateway.pairingFileType
             throw MinimuxerError.mount(protocol: activeProtocol, reason: "DDI mount path not set")
         }
@@ -383,7 +431,6 @@ final internal class MinimuxerImpl: MinimuxerAPI {
         try await self.mountDDI(docsPath: mountPath)
     }
 
-    
     @discardableResult
     func mountDDI(docsPath: String) async throws(MinimuxerError) -> Bool {
         try await runWithChecks("while mounting DDI", catchAll: { .mount(protocol: self.activeProtocol, reason: $0) }) {
