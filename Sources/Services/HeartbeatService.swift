@@ -53,14 +53,11 @@ final internal class HeartbeatService {
     private let state = MutableState()
     private var lastErrorDescription: String?
 
-    /// Đọc từ MinimuxerImpl. Ghi từ heartbeat task.
-    /// Không thread-safe tuyệt đối, nhưng chấp nhận được vì:
-    ///  - Chỉ có 1 writer (heartbeat task)
-    ///  - Reader chỉ poll giá trị bool (không cần consistency với các field khác)
-    ///  - Giá trị chỉ chuyển từ false → true (hoặc ngược lại khi stop)
+    // ⬇️ CHANGED: property ghi bởi heartbeat task, đọc bởi MinimuxerImpl.
+    // Chỉ có 1 writer (heartbeat task), reader chỉ poll bool → chấp nhận được.
     var lastBeatSuccessful = false
 
-    /// Task handle để có thể cancel sạch khi stop().
+    // ⬇️ NEW: task handle để cancel sạch khi stop().
     private var heartbeatTask: Task<Void, Never>?
 
     /// Trạng thái task — dùng cho isReady() gate (optional).
