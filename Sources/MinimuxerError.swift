@@ -13,7 +13,7 @@ public import MinimuxerCommon
 public struct MinimuxerServiceError: Error, CustomStringConvertible {
     public let component: MinimuxerComponent
     public let error: Error
-    
+
     public var description: String {
         return "[\(component.rawValue)] \(error.localizedDescription)"
     }
@@ -142,11 +142,23 @@ extension DeviceGatewayError {
         (code == .connectionFailed || code == .noConnection) && !isVPNDrop
     }
 
-    func asMinimuxerError(protocol activeProtocol: PairingProtocol, catchAll: (String) -> MinimuxerError) -> MinimuxerError {
+    // ⬇️ CHANGED: thêm param `heartbeatHasSucceeded` để phân loại UnexpectedEof.
+    // Nếu heartbeat chưa từng OK → đây là hệ quả của Lockdown session chết,
+    // KHÔNG phải VPN hỏng. Classify là .noDevice để caller retry.
+    func asMinimuxerError(
+        protocol activeProtocol: PairingProtocol,
+        heartbeatHasSucceeded: Bool = true,
+        catchAll: (String) -> MinimuxerError
+    ) -> MinimuxerError {
         if code == .invalidPairingFile {
             return .invalidPairing(protocol: activeProtocol, reason: reason)
         }
         if isVPNDrop {
+            if !heartbeatHasSucceeded {
+                return .noDevice(
+                    "Lockdown session lost before heartbeat stabilized: \(reason)"
+                )
+            }
             return .invalidVPN(reason)
         }
         return catchAll(reason)
