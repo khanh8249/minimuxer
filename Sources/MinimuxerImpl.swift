@@ -296,7 +296,7 @@ final internal class MinimuxerImpl: MinimuxerAPI {
 
     private func restartMuxerServer() async throws(MinimuxerError) {
         guard self.gateway.requiresUsbmuxd else { return }
-        guard let pairingDict = selfPort.gateway.pairingDataDict else {
+        guard let pairingDict = self.gateway.pairingDataDict else {
             debugLog("[minimuxer] ERROR: Pairing DICT missing...ignoring restart MuxerServer")
             throw MinimuxerError đ.pairingNotLoaded("Pairing dictionary is missing in gateway")
         }
