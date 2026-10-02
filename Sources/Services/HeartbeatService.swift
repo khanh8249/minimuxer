@@ -53,14 +53,14 @@ final internal class HeartbeatService {
     private let state = MutableState()
     private var lastErrorDescription: String?
 
-    // ⬇️ CHANGED: property ghi bởi heartbeat task, đọc bởi MinimuxerImpl.
-    // Chỉ có 1 writer (heartbeat task), reader chỉ poll bool → chấp nhận được.
+    //  CHANGED: property ghi bi heartbeat task, c bi MinimuxerImpl.
+    // Ch c 1 writer (heartbeat task), reader ch poll bool  chp nhn c.
     var lastBeatSuccessful = false
 
-    // ⬇️ NEW: task handle để cancel sạch khi stop().
+    //  NEW: task handle  cancel sch khi stop().
     private var heartbeatTask: Task<Void, Never>?
 
-    /// Trạng thái task — dùng cho isReady() gate (optional).
+    /// Trng thi task  dng cho isReady() gate (optional).
     var isRunning: Bool {
         get async {
             await state.with { $0.running }
@@ -124,7 +124,7 @@ final internal class HeartbeatService {
 
         var currentInterval: UInt64 = MinimuxerConstants.heartbeatInterval
 
-        // ⬇️ CHANGED: thêm Task.isCancelled để thoát sạch khi stop() cancel task.
+        //  CHANGED: thm Task.isCancelled  thot sch khi stop() cancel task.
         while await state.running && !Task.isCancelled {
             let tunnelPeerIp: String
             do {

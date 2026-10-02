@@ -3,7 +3,7 @@
 //  Minimuxer
 //
 //  Created by Magesh K on 4/7/26.
-//  Copyright © 2026 SideStore. All rights reserved.
+//  Copyright  2026 SideStore. All rights reserved.
 //
 
 import Foundation
@@ -80,7 +80,7 @@ public enum MinimuxerError: Error, Equatable, CustomStringConvertible, Localized
         case .noVPN(let r): return "NoVPN: \(r)"
         case .notStarted(let r): return "NotStarted: \(r)"
         case .pairingNotLoaded(let r): return "PairingNotLoaded: \(r)"
-        case .restartAlreadyInProgressError(let r): return "RestartAlreadyInProgressError: \(r)"
+        case.restartAlreadyInProgressError(let r): return "RestartAlreadyInProgressError: \(r)"
         case .invalidVPN(let r): return "InvalidVPN: \(r)"
         case .invalidPairing(let proto, let reason): return "InvalidPairing(protocol: \(proto), reason: \(reason))"
         case .muxerNotListening(let r): return "MuxerNotListening: \(r)"
@@ -142,9 +142,9 @@ extension DeviceGatewayError {
         (code == .connectionFailed || code == .noConnection) && !isVPNDrop
     }
 
-    // ⬇️ CHANGED: thêm param `heartbeatHasSucceeded` để phân loại UnexpectedEof.
-    // Nếu heartbeat chưa từng OK → đây là hệ quả của Lockdown session chết,
-    // KHÔNG phải VPN hỏng. Classify là .noDevice để caller retry.
+    //  CHANGED: thm param `heartbeatHasSucceeded`  phn loi UnexpectedEof.
+    // Nu heartbeat cha tng OK  y l h qu ca Lockdown session cht,
+    // KHNG phi VPN hng. Classify l .noDevice  caller retry.
     func asMinimuxerError(
         protocol activeProtocol: PairingProtocol,
         heartbeatHasSucceeded: Bool = true,

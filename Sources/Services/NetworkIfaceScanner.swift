@@ -4,7 +4,7 @@
 //
 //  Created by ny on 2/27/26.
 //  Reworked by Magesh K on 8/15/26.
-//  Copyright © 2026 SideStore. All rights reserved.
+//  Copyright  2026 SideStore. All rights reserved.
 //
 
 
@@ -540,11 +540,11 @@ internal final class TunnelNetInfo: NetInfo, @unchecked Sendable {
         let rawRoutes = routes.routes(for: interfaceIndex)
         // Preserves all raw kernel routing table entries for this tunnel interface without filtering.
         // This may include:
-        //  • Default routes (0.0.0.0, ::)
-        //  • Specific destination / peer routes (e.g. 11.8.0.2, 13.7.0.2)
-        //  • Local interface host / self routes
-        //  • Local on-link subnet routes (e.g. 15.7.0.0/24)
-        //  • Multicast (224.0.0.0/4, ff00::/8) and broadcast (255.255.255.255)
+        //   Default routes (0.0.0.0, ::)
+        //   Specific destination / peer routes (e.g. 11.8.0.2, 13.7.0.2)
+        //   Local interface host / self routes
+        //   Local on-link subnet routes (e.g. 15.7.0.0/24)
+        //   Multicast (224.0.0.0/4, ff00::/8) and broadcast (255.255.255.255)
         self.destinationRoutes = rawRoutes.map { TunnelRoute(entry: $0) }
 
         super.init(name: name, interfaceIndex: interfaceIndex, interfaceAddresses: interfaceAddresses, routes: routes, flags: flags)
@@ -707,7 +707,7 @@ fileprivate func formatNetInfoList(_ list: Set<NetInfo>) -> String {
         "---------------------------------------------------\n" +
         list.map { info -> String in
             let paddedName = info.name.padding(toLength: maxNameLength, withPad: " ", startingAt: 0)
-            return "  • \(paddedName) \(info.description)"
+            return "   \(paddedName) \(info.description)"
         }.sorted().joined(separator: "\n") + "\n" +
         "---------------------------------------------------"
 }

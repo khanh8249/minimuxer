@@ -88,13 +88,13 @@ final internal class NetworkObserverService: NetworkObserverAPI, @unchecked Send
         await onNetworkChanged?()
     }
 
-    // ⬇️ CHANGED: thêm param `force` để bypass caching khi cần.
+    //  CHANGED: thm param `force`  bypass caching khi cn.
     func refreshEndpoint(force: Bool = false) async {
         let manager = self.connectionManager
         verboseLog("[minimuxer] [net] refreshing interfaces list and peers (force: \(force))")
         let ifacesChanged = await manager.refresh(force: force)
 
-        // ⬇️ CHANGED: cho phép đi tiếp khi force = true, ngay cả khi ifaces không đổi.
+        //  CHANGED: cho php i tip khi force = true, ngay c khi ifaces khng i.
         guard ifacesChanged || force else {
             return
         }
@@ -110,12 +110,12 @@ final internal class NetworkObserverService: NetworkObserverAPI, @unchecked Send
                 if let info = await manager.vpnIface {
                     verboseLog("""
                     [minimuxer] [net] vpn interface detected
-                      • name: \(info.name)
-                      • addresses: \(info.interfaceAddresses.description)
-                      • linkType: \(info.linkType)
-                      • linkLayerDestinationIP: \(info.linkLayerDestinationIP?.description ?? "nil")
-                      • destinationIPs: [\(info.destinationIPs.map { $0.description }.joined(separator: ", "))]
-                      • destinationGatewayIPs: [\(info.destinationGatewayIPs.map { $0.description }.joined(separator: ", "))]
+                       name: \(info.name)
+                       addresses: \(info.interfaceAddresses.description)
+                       linkType: \(info.linkType)
+                       linkLayerDestinationIP: \(info.linkLayerDestinationIP?.description ?? "nil")
+                       destinationIPs: [\(info.destinationIPs.map { $0.description }.joined(separator: ", "))]
+                       destinationGatewayIPs: [\(info.destinationGatewayIPs.map { $0.description }.joined(separator: ", "))]
 
                     """)
 
@@ -129,7 +129,7 @@ final internal class NetworkObserverService: NetworkObserverAPI, @unchecked Send
 
                     if let peer = effectiveIp {
                         verboseLog("[minimuxer] [net] update device IP with effective tunnel peer: '\(effectivePeer)'")
-                        // ⬇️ CHANGED: chỉ notify proxy khi giá trị thay đổi thực sự.
+                        //  CHANGED: ch notify proxy khi gi tr thay i thc s.
                         let changed = await self.endpoint.update(peer)
                         if changed {
                             self.proxyServer.notifyDeviceAttached(tunnelPeerIp: peer)
@@ -155,7 +155,7 @@ final internal class NetworkObserverService: NetworkObserverAPI, @unchecked Send
                 if let remoteIp = await manager.remoteServerIp {
                     verboseLog("""
                     [minimuxer] [net] remote server endpoint detected \(isReachable ? "and reachable" : "but unreachable")
-                      • remoteServerIp: \(remoteIp)
+                       remoteServerIp: \(remoteIp)
 
                     """)
                     if isReachable {
@@ -227,7 +227,7 @@ final internal class NetworkObserverService: NetworkObserverAPI, @unchecked Send
         }
     }
 
-    // True when at least one `utun*` interface is active (userspace VPN — ex: wireguard).
+    // True when at least one `utun*` interface is active (userspace VPN  ex: wireguard).
     var isUTunAvailable: Bool {
         return NetworkIfaceScanner.scan(quiet: true).contains { $0.name.lowercased().hasPrefix("utun") }
     }

@@ -3,7 +3,7 @@
 //  Minimuxer
 //
 //  Created by Magesh K on 16/08/26.
-//  Copyright © 2026 SideStore. All rights reserved.
+//  Copyright  2026 SideStore. All rights reserved.
 //
 
 import Foundation
@@ -52,9 +52,9 @@ actor DeviceConnectionManager {
         let connectionMode = binding.getConnectionMode()
         verboseLog("""
         [minimuxer] [iface] preferred connection mode set in binding
-          • mode: .\(connectionMode)
-          • overrideTunnelPeerIp: \(binding.getOverrideTunnelPeerIp())
-          • remoteServerIp: \(binding.getRemoteServerIp())
+           mode: .\(connectionMode)
+           overrideTunnelPeerIp: \(binding.getOverrideTunnelPeerIp())
+           remoteServerIp: \(binding.getRemoteServerIp())
 
         """)
     }
@@ -65,7 +65,7 @@ actor DeviceConnectionManager {
 
     private func tcpProbe(_ ip: String?) async -> Bool {
         guard let ip, !ip.isEmpty else {
-            debugLog("[minimuxer] [iface] tcpProbe skipped — IP is nil or empty")
+            debugLog("[minimuxer] [iface] tcpProbe skipped  IP is nil or empty")
             return false
         }
         let currentProtocol = gateway.pairingFileType
@@ -89,7 +89,7 @@ actor DeviceConnectionManager {
         return reachable
     }
 
-    // ⬇️ CHANGED: thêm param `force` để bypass short-circuit.
+    //  CHANGED: thm param `force`  bypass short-circuit.
     @discardableResult
     func refresh(quietScan: Bool = false, force: Bool = false) async -> Bool {
         let connectionMode = getPreferredConnectionMode()
@@ -128,7 +128,7 @@ actor DeviceConnectionManager {
                 let isDerivedIpUnchanged = lastDerivedPeer == derivedPeerIp && lastDerivedPeerMask == derivedPeerSubnetMask
                 let isReportedIpUnchanged = lastReportedPeer == reportedPeerIp
 
-                // ⬇️ CHANGED: bỏ qua short-circuit khi force = true.
+                //  CHANGED: b qua short-circuit khi force = true.
                 if !force && lastConnectionMode == connectionMode &&
                     lastInterfacesCache == interfacesCache &&
                     isOverrideIpUnchanged && isDerivedIpUnchanged && isReportedIpUnchanged &&
@@ -154,15 +154,15 @@ actor DeviceConnectionManager {
 
                 debugLog("""
                 [minimuxer] [iface] refresh - rescan routes (force: \(force))
-                  • mode: .\(connectionMode)
-                  • local iface count: \(interfacesCache.count)
-                  • probable-vpn host: \(vpnIface?.interfaceAddresses.v4.first?.host ?? "nil")
-                  • probable-vpn mask: \(vpnIface?.interfaceAddresses.v4.first?.mask ?? "nil")
-                  • probable-vpn destination gateway IP: \(reportedPeerIp ?? "nil")
-                  • probable-vpn derived peer IP: \(derivedPeerIp ?? "nil")
-                  • probable-vpn derived peer mask: \(derivedPeerSubnetMask ?? "nil")
-                  • override peer IP: \(overridePeerIp ?? "nil")
-                  • override peer reachable: \(isOverridePeerIpReachable)
+                   mode: .\(connectionMode)
+                   local iface count: \(interfacesCache.count)
+                   probable-vpn host: \(vpnIface?.interfaceAddresses.v4.first?.host ?? "nil")
+                   probable-vpn mask: \(vpnIface?.interfaceAddresses.v4.first?.mask ?? "nil")
+                   probable-vpn destination gateway IP: \(reportedPeerIp ?? "nil")
+                   probable-vpn derived peer IP: \(derivedPeerIp ?? "nil")
+                   probable-vpn derived peer mask: \(derivedPeerSubnetMask ?? "nil")
+                   override peer IP: \(overridePeerIp ?? "nil")
+                   override peer reachable: \(isOverridePeerIpReachable)
 
                 """)
                 return true
@@ -172,7 +172,7 @@ actor DeviceConnectionManager {
                 let serverIp = (rawServerIp?.isEmpty ?? true) ? nil : rawServerIp
                 let reachable = await tcpProbe(serverIp)
 
-                // ⬇️ CHANGED: bỏ qua short-circuit khi force = true.
+                //  CHANGED: b qua short-circuit khi force = true.
                 if !force && self.lastConnectionMode == connectionMode && serverIp == remoteServerIp && reachable == isRemoteServerIpReachable {
                     debugLog("[minimuxer] [iface] no remote server state changes detected, skipping refresh")
                     return false
@@ -193,9 +193,9 @@ actor DeviceConnectionManager {
 
                 debugLog("""
                 [minimuxer] [iface] refresh (force: \(force))
-                  • mode: .\(connectionMode)
-                  • remote server IP: \(remoteServerIp ?? "nil")
-                  • remote server reachable: \(isRemoteServerIpReachable)
+                   mode: .\(connectionMode)
+                   remote server IP: \(remoteServerIp ?? "nil")
+                   remote server reachable: \(isRemoteServerIpReachable)
 
                 """)
                 return true

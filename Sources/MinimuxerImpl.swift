@@ -3,7 +3,7 @@
 //  Minimuxer
 //
 //  Created by Magesh K on 4/7/26.
-//  Copyright © 2026 SideStore. All rights reserved.
+//  Copyright  2026 SideStore. All rights reserved.
 //
 
 import Foundation
@@ -16,13 +16,13 @@ private enum MinimuxerStatus {
     case started, inprogress, stopped
 }
 
-// MARK: - Local constants (không phụ thuộc MinimuxerCommon)
-/// Timeout chờ heartbeat đầu tiên sau khi start gateway (giây).
-/// iOS 16 cần 2-4s để Lockdown session ổn định; đặt 10s cho an toàn.
+// MARK: - Local constants (khng ph thuc MinimuxerCommon)
+/// Timeout ch heartbeat u tin sau khi start gateway (giy).
+/// iOS 16 cn 2-4s  Lockdown session n nh; t 10s cho an ton.
 private let kHeartbeatInitialTimeoutSeconds: TimeInterval = 10.0
-/// Timeout chờ device endpoint (tunnel peer IP) được resolve (giây).
+/// Timeout ch device endpoint (tunnel peer IP) c resolve (giy).
 private let kEndpointReadyTimeoutSeconds: TimeInterval = 8.0
-/// Poll interval khi chờ endpoint.
+/// Poll interval khi ch endpoint.
 private let kEndpointReadyPollIntervalNs: UInt64 = 500_000_000  // 500ms
 
 final internal class MinimuxerImpl: MinimuxerAPI {
@@ -105,8 +105,8 @@ final internal class MinimuxerImpl: MinimuxerAPI {
         await self.connectionManager.getPreferredConnectionMode()
     }
 
-    // ⬇️ CHANGED: bindConnectionConfig — giữ force = false vì gateway có thể chưa init.
-    // Force refresh thật sự sẽ diễn ra trong start() sau khi gateway.start() hoàn tất.
+    //  CHANGED: bindConnectionConfig  gi force = false v gateway c th cha init.
+    // Force refresh tht s s din ra trong start() sau khi gateway.start() hon tt.
     func bindConnectionConfig(_ binding: ConnectionConfigBinding) async {
         await self.connectionManager.bindConnectionConfig(binding)
         await self.network.refreshEndpoint(force: false)
@@ -126,15 +126,15 @@ final internal class MinimuxerImpl: MinimuxerAPI {
             return .failure(.notStarted("Minimuxer has not been started"))
         }
 
-        // ⬇️ NEW: Heartbeat gate — chạy TRƯỚC mọi check khác.
+        //  NEW: Heartbeat gate  chy TRC mi check khc.
         if !self.heartbeat.lastBeatSuccessful {
             debugLog("[minimuxer] minimuxer not ready: heartbeat has not succeeded yet")
             return .failure(.noDevice(
-                "Heartbeat has not succeeded yet — Lockdown session is not stable"
+                "Heartbeat has not succeeded yet  Lockdown session is not stable"
             ))
         }
 
-        // ⬇️ NEW: Endpoint gate — cần có device IP trước khi cho phép thao tác.
+        //  NEW: Endpoint gate  cn c device IP trc khi cho php thao tc.
         let endpointReady = await self.endpoint.isInitialized
         if !endpointReady {
             debugLog("[minimuxer] minimuxer not ready: device endpoint not initialized")
@@ -163,13 +163,13 @@ final internal class MinimuxerImpl: MinimuxerAPI {
                 let uTunPresent = net.isUTunAvailable
                 if !uTunPresent {
                     debugLog("[minimuxer] minimuxer not ready: no utun interface found")
-                    return .failure(.noVPN("No utun interface detected — LocalDevVPN is not connected"))
+                    return .failure(.noVPN("No utun interface detected  LocalDevVPN is not connected"))
                 }
 
                 if self.gateway.pairingFileType != .rppairing && !net.isIKEv2IPSecAvailable {
                     if #available(iOS 26.4, *) {
                         debugLog("[minimuxer] minimuxer not ready: no ipsec interface (required for lockdown on iOS 26.4+)")
-                        return .failure(.invalidVPN("utun is present but no ipsec/IKEv2 interface found — LocalDevVPN may not support the lockdown protocol on iOS 26.4+"))
+                        return .failure(.invalidVPN("utun is present but no ipsec/IKEv2 interface found  LocalDevVPN may not support the lockdown protocol on iOS 26.4+"))
                     }
                 }
 
@@ -192,7 +192,7 @@ final internal class MinimuxerImpl: MinimuxerAPI {
             switch connectionMode {
                 case .localVPN:
                     debugLog("[minimuxer] minimuxer not ready: tunnel peer IP not available despite tunnel iface being present")
-                    return .failure(.noDevice("VPN tunnel iface is up but tunnel peer IP is not yet reachable — VPN may not be routing device traffic correctly. Cause: \(error.localizedDescription)"))
+                    return .failure(.noDevice("VPN tunnel iface is up but tunnel peer IP is not yet reachable  VPN may not be routing device traffic correctly. Cause: \(error.localizedDescription)"))
                 case .remoteServer:
                     debugLog("[minimuxer] minimuxer not ready: remote endpoint IP is not configured or reachable")
                     return .failure(.noDevice("Remote endpoint IP is not configured or reachable. Cause: \(error.localizedDescription)"))
@@ -206,10 +206,10 @@ final internal class MinimuxerImpl: MinimuxerAPI {
             switch connectionMode {
                 case .localVPN:
                     debugLog("[minimuxer] minimuxer not ready: failed to connect to tunnel peer IP")
-                    return .failure(.invalidVPN("VPN tunnel iface is up and tunnel peer IP \(deviceIp) is known, but TCP port poll failed — device may be unreachable on this interface"))
+                    return .failure(.invalidVPN("VPN tunnel iface is up and tunnel peer IP \(deviceIp) is known, but TCP port poll failed  device may be unreachable on this interface"))
                 case .remoteServer:
                     debugLog("[minimuxer] minimuxer not ready: failed to connect to remote endpoint IP \(deviceIp)")
-                    return .failure(.notReachable("Remote endpoint \(deviceIp) is configured, but TCP port poll failed — target device is unreachable"))
+                    return .failure(.notReachable("Remote endpoint \(deviceIp) is configured, but TCP port poll failed  target device is unreachable"))
                 case .notConfigured:
                     return .failure(connectionNotConfiguredError())
             }
@@ -245,7 +245,7 @@ final internal class MinimuxerImpl: MinimuxerAPI {
         return .success(true)
     }
 
-    // ⬇️ CHANGED: truyền heartbeatHasSucceeded để phân loại UnexpectedEof chính xác.
+    //  CHANGED: truyn heartbeatHasSucceeded  phn loi UnexpectedEof chnh xc.
     private func runWithChecks<T: Sendable>(
         _ context: String,
         catchAll: @escaping (String) -> MinimuxerError,
@@ -298,13 +298,13 @@ final internal class MinimuxerImpl: MinimuxerAPI {
         guard self.gateway.requiresUsbmuxd else { return }
         guard let pairingDict = self.gateway.pairingDataDict else {
             debugLog("[minimuxer] ERROR: Pairing DICT missing...ignoring restart MuxerServer")
-            throw MinimuxerError đ.pairingNotLoaded("Pairing dictionary is missing in gateway")
+            throw MinimuxerError.pairingNotLoaded("Pairing dictionary is missing in gateway")
         }
         verboseLog("[minimuxer] loaded pairing file keys: \(pairingDict.keys)")
 
-       ã guard let deviceUDID = pairingDict["UDID"] as? String else {
+        guard let deviceUDID = pairingDict["UDID"] as? String else {
             debugLog("[minimuxer] ERROR: Pairing file missing UDID")
-            throw Minimuxer cóError.invalidPairing(protocol: activeProtocol, reason: "Pairing file is missing UDID value")
+            throw MinimuxerError.invalidPairing(protocol: activeProtocol, reason: "Pairing file is missing UDID value")
         }
 
         await self.proxyServer.stop()
@@ -341,18 +341,18 @@ final internal class MinimuxerImpl: MinimuxerAPI {
             try await restartMuxerServer()
         }
 
-        // ⬇️ NEW: Force refresh endpoint SAU KHI gateway đã init.
-        // Lúc này gateway.pairingFileType và giá trị
-        // đúng → tcpProbe trong refreshEndpoint sẽ hoạt động chính xác.
+        //  NEW: Force refresh endpoint SAU KHI gateway  init.
+        // Lc ny gateway.pairingFileType v gi tr
+        // ng  tcpProbe trong refreshEndpoint s hot ng chnh xc.
         await self.network.refreshEndpoint(force: true)
 
-        // ⬇️ NEW: Gate — chờ endpoint sẵn sàng (force refresh theo chu kỳ).
+        //  NEW: Gate  ch endpoint sn sng (force refresh theo chu k).
         try await awaitEndpointReady()
 
-        // ⬇️ NEW: start heartbeat TRƯỚC khi báo ready.
+        //  NEW: start heartbeat TRC khi bo ready.
         await self.heartbeat.start()
 
-        // ⬇️ NEW: Gate — chờ heartbeat đầu tiên thành công.
+        //  NEW: Gate  ch heartbeat u tin thnh cng.
         try await awaitFirstHeartbeat()
 
         // mark ready!
@@ -362,7 +362,7 @@ final internal class MinimuxerImpl: MinimuxerAPI {
     }
 
     func stop() async throws(MinimuxerError) {
-        // ⬇️ NEW: dừng heartbeat trước tiên.
+        //  NEW: dng heartbeat trc tin.
         await self.heartbeat.stop()
 
         // actor serialization scope
@@ -388,7 +388,7 @@ final internal class MinimuxerImpl: MinimuxerAPI {
         }
     }
 
-    // ⬇️ NEW: chờ endpoint sẵn sàng, force refresh theo chu kỳ.
+    //  NEW: ch endpoint sn sng, force refresh theo chu k.
     private func awaitEndpointReady(
         timeout: TimeInterval = kEndpointReadyTimeoutSeconds
     ) async throws(MinimuxerError) {
@@ -406,10 +406,10 @@ final internal class MinimuxerImpl: MinimuxerAPI {
                 return
             }
 
-            // Force refresh để tcpProbe chạy lại (bypass caching trong manager)
+            // Force refresh  tcpProbe chy li (bypass caching trong manager)
             await self.network.refreshEndpoint(force: true)
 
-            // Check lại ngay sau refresh
+            // Check li ngay sau refresh
             if await self.endpoint.isInitialized {
                 verboseLog("[minimuxer] Device endpoint ready (after force refresh)")
                 return
@@ -420,12 +420,12 @@ final internal class MinimuxerImpl: MinimuxerAPI {
 
         debugLog("[minimuxer] Device endpoint not initialized after \(timeout)s")
         throw MinimuxerError.noDevice(
-            "Device endpoint (tunnel peer IP) was not resolved within \(timeout)s — " +
+            "Device endpoint (tunnel peer IP) was not resolved within \(timeout)s  " +
             "check LocalDevVPN is connected and routing device traffic."
         )
     }
 
-    // ⬇️ NEW: chờ heartbeat đầu tiên thành công.
+    //  NEW: ch heartbeat u tin thnh cng.
     private func awaitFirstHeartbeat(
         timeout: TimeInterval = kHeartbeatInitialTimeoutSeconds
     ) async throws(MinimuxerError) {
@@ -449,7 +449,7 @@ final internal class MinimuxerImpl: MinimuxerAPI {
 
         debugLog("[minimuxer] First heartbeat timed out after \(timeout)s")
         throw MinimuxerError.noDevice(
-            "Heartbeat did not succeed within \(timeout)s — device may be unreachable " +
+            "Heartbeat did not succeed within \(timeout)s  device may be unreachable " +
             "or pairing file is invalid. Check LocalDevVPN and pairing file."
         )
     }
@@ -460,7 +460,7 @@ final internal class MinimuxerImpl: MinimuxerAPI {
             let activeProtocol = self.gateway.pairingFileType
             throw MinimuxerError.mount(protocol: activeProtocol, reason: "start() should be invoked before requesting \(op). cause: lastDocsPath is nil")
         }
-        // stop() sẽ tự dừng heartbeat; start() sẽ tự start lại.
+        // stop() s t dng heartbeat; start() s t start li.
         try await stop()
         try await start(pairingFile: pairingFile, mountPath: mountPath, preferred: preferred)
     }
@@ -471,11 +471,11 @@ final internal class MinimuxerImpl: MinimuxerAPI {
         guard let pairingData = self.gateway.pairingFileData,
               let pairingFile = String(data: pairingData, encoding: .utf8)
         else {
-            debugLog("[minimuxer] restart: no existing pairing file — cannot restart")
+            debugLog("[minimuxer] restart: no existing pairing file  cannot restart")
             throw MinimuxerError.invalidPairing(protocol: activeProtocol, reason: "No existing pairing file found in gateway during restart")
         }
         try await restartWith(pairingFile: pairingFile, op: "restart")
-        // ⬇️ CHANGED: force refresh sau restart.
+        //  CHANGED: force refresh sau restart.
         await self.network.refreshEndpoint(force: true)
     }
 

@@ -4,7 +4,7 @@
 //
 //  Original Rust Implementation by @jkcoxson
 //  Swift Port created by Magesh K on 02/03/26.
-//  Copyright © 2026 SideStore. All rights reserved.
+//  Copyright  2026 SideStore. All rights reserved.
 //
 
 import Foundation
@@ -46,7 +46,7 @@ final internal class UsbmuxdProxyServer {
     }
 
     // Binds a TCP server on 127.0.0.1:27015 and accepts incoming connections
-    // from libusbmuxd. This is our fake usbmuxd — it speaks
+    // from libusbmuxd. This is our fake usbmuxd  it speaks
     // just enough of the usbmuxd protocol for the library to discover the
     // device, read the pairing record, and open services (AFC, lockdown, etc.).
     @discardableResult

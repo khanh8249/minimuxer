@@ -3,7 +3,7 @@
 //  Minimuxer
 //
 //  Created by Magesh K on 04/07/26.
-//  Copyright © 2026 SideStore. All rights reserved.
+//  Copyright  2026 SideStore. All rights reserved.
 //
 
 import Foundation
