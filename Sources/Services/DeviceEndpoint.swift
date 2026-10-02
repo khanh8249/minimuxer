@@ -28,16 +28,24 @@ actor DeviceEndpoint {
         return ip
     }
 
-    func update(_ newIP: String) {
+    // ⬇️ CHANGED: return Bool = true nếu giá trị thay đổi.
+    @discardableResult
+    func update(_ newIP: String) -> Bool {
+        let changed = (ipAddr != newIP)
         ipAddr = newIP
         self.gateway.setDeviceEndpointIp(newIP)
-        verboseLog("[minimuxer] device endpoint updated -> \(newIP)")
+        verboseLog("[minimuxer] device endpoint updated -> \(newIP) (changed: \(changed))")
+        return changed
     }
 
-    func clear() {
+    // ⬇️ CHANGED: return Bool = true nếu trước đó có giá trị.
+    @discardableResult
+    func clear() -> Bool {
+        let wasSet = (ipAddr != nil)
         ipAddr = nil
         self.gateway.setDeviceEndpointIp(nil)
-        verboseLog("[minimuxer] device endpoint cleared -> nil")
+        verboseLog("[minimuxer] device endpoint cleared -> nil (wasSet: \(wasSet))")
+        return wasSet
     }
 
     var isInitialized: Bool {
