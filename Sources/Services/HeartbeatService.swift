@@ -60,12 +60,6 @@ final internal class HeartbeatService {
     //  NEW: task handle  cancel sch khi stop().
     private var heartbeatTask: Task<Void, Never>?
 
-    /// Trng thi task  dng cho isReady() gate (optional).
-    var isRunning: Bool {
-        get async {
-            await state.with { $0.running }
-        }
-    }
 
     // MARK: - Lifecycle
 

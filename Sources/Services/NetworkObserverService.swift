@@ -89,7 +89,11 @@ final internal class NetworkObserverService: NetworkObserverAPI, @unchecked Send
     }
 
     //  CHANGED: thm param `force`  bypass caching khi cn.
-    func refreshEndpoint(force: Bool = false) async {
+    func refreshEndpoint() async {
+        await refreshEndpoint(force: false)
+    }
+
+    func refreshEndpoint(force: Bool) async {
         let manager = self.connectionManager
         verboseLog("[minimuxer] [net] refreshing interfaces list and peers (force: \(force))")
         let ifacesChanged = await manager.refresh(force: force)
