@@ -19,7 +19,7 @@ actor DeviceConnectionManager {
     private var interfacesCache: Set<NetInfo> = []
     private var connectionConfigCache: ConnectionConfigBinding?
     private var lastConnectionMode: DeviceConnectionMode? = nil
-    
+
     // local vpn params
     var vpnIface: TunnelNetInfo?
     var reportedPeerIp: String?
@@ -52,13 +52,13 @@ actor DeviceConnectionManager {
         let connectionMode = binding.getConnectionMode()
         verboseLog("""
         [minimuxer] [iface] preferred connection mode set in binding
-          • mode: .\(connectionMode) 
-          • overrideTunnelPeerIp: \(binding.getOverrideTunnelPeerIp()) 
-          • remoteServerIp: \(binding.getRemoteServerIp()) 
-        
+          • mode: .\(connectionMode)
+          • overrideTunnelPeerIp: \(binding.getOverrideTunnelPeerIp())
+          • remoteServerIp: \(binding.getRemoteServerIp())
+
         """)
     }
-    
+
     func getPreferredConnectionMode() -> DeviceConnectionMode {
         connectionConfigCache?.getConnectionMode() ?? .notConfigured
     }
@@ -90,7 +90,7 @@ actor DeviceConnectionManager {
     }
 
     @discardableResult
-    func refresh(quietScan: Bool = false) async -> Bool {
+    func refresh(quietScan: Bool = false, force: Bool = false) async -> Bool {
         let connectionMode = getPreferredConnectionMode()
         defer { lastConnectionMode = connectionMode }
 
@@ -98,7 +98,7 @@ actor DeviceConnectionManager {
             case .notConfigured:
                 debugLog("[minimuxer] [iface] connection mode not configured. skipping refresh...")
                 return false
-            
+
             case .localVPN:
                 // cache last state in locals
                 let lastInterfacesCache = interfacesCache
@@ -111,7 +111,7 @@ actor DeviceConnectionManager {
                 let lastIsOverridePeerIpReachable = isOverridePeerIpReachable
                 // set new states
                 interfacesCache = NetworkIfaceScanner.scan(quiet: quietScan)
-                
+
                 let (resolvedTunnel, candidatePeer, isDerivedReachable) = await resolveLocalVPNTunnel(from: interfacesCache)
                 vpnIface = resolvedTunnel
                 reportedPeerIp = resolvedTunnel?.linkLayerDestinationIP?.v4?.host
@@ -122,11 +122,12 @@ actor DeviceConnectionManager {
                 let rawOverrideIp = connectionConfigCache?.getOverrideTunnelPeerIp()
                 overridePeerIp = (rawOverrideIp?.isEmpty ?? true) ? nil : rawOverrideIp
                 isOverridePeerIpReachable = await tcpProbe(overridePeerIp)
-            
+
                 let isOverrideIpUnchanged = lastOverrideIp == overridePeerIp
                 let isDerivedIpUnchanged = lastDerivedPeer == derivedPeerIp && lastDerivedPeerMask == derivedPeerSubnetMask
                 let isReportedIpUnchanged = lastReportedPeer == reportedPeerIp
-                if lastConnectionMode == connectionMode &&
+
+                if !force && lastConnectionMode == connectionMode &&
                     lastInterfacesCache == interfacesCache &&
                     isOverrideIpUnchanged && isDerivedIpUnchanged && isReportedIpUnchanged &&
                     lastIsDerivedPeerIpReachable == isDerivedPeerIpReachable &&
@@ -135,7 +136,7 @@ actor DeviceConnectionManager {
                     debugLog("[minimuxer] [iface] no interface state changes detected, skipping refresh")
                     return false
                 }
-                
+
                 // continue updating
                 debugLog("[minimuxer] [iface] using the first uTun vpn interface info")
                 // set states for this mode
@@ -148,9 +149,9 @@ actor DeviceConnectionManager {
                 connectionConfigCache?.setOverrideTunnelPeerReachable(isOverridePeerIpReachable)
                 // clear auto discovered reachability state
                 connectionConfigCache?.setRemoteReachable(false)
-            
+
                 debugLog("""
-                [minimuxer] [iface] refresh - rescan routes
+                [minimuxer] [iface] refresh - rescan routes (force: \(force))
                   • mode: .\(connectionMode)
                   • local iface count: \(interfacesCache.count)
                   • probable-vpn host: \(vpnIface?.interfaceAddresses.v4.first?.host ?? "nil")
@@ -160,7 +161,7 @@ actor DeviceConnectionManager {
                   • probable-vpn derived peer mask: \(derivedPeerSubnetMask ?? "nil")
                   • override peer IP: \(overridePeerIp ?? "nil")
                   • override peer reachable: \(isOverridePeerIpReachable)
-                
+
                 """)
                 return true
 
@@ -168,7 +169,8 @@ actor DeviceConnectionManager {
                 let rawServerIp = connectionConfigCache?.getRemoteServerIp()
                 let serverIp = (rawServerIp?.isEmpty ?? true) ? nil : rawServerIp
                 let reachable = await tcpProbe(serverIp)
-                if self.lastConnectionMode == connectionMode && serverIp == remoteServerIp && reachable == isRemoteServerIpReachable {
+
+                if !force && self.lastConnectionMode == connectionMode && serverIp == remoteServerIp && reachable == isRemoteServerIpReachable {
                     debugLog("[minimuxer] [iface] no remote server state changes detected, skipping refresh")
                     return false
                 }
@@ -185,13 +187,13 @@ actor DeviceConnectionManager {
                 connectionConfigCache?.setTunnelPeerReachable(false)
                 connectionConfigCache?.setOverrideTunnelPeerReachable(false)
                 reportedPeerIp = nil
-            
+
                 debugLog("""
-                [minimuxer] [iface] refresh
+                [minimuxer] [iface] refresh (force: \(force))
                   • mode: .\(connectionMode)
                   • remote server IP: \(remoteServerIp ?? "nil")
                   • remote server reachable: \(isRemoteServerIpReachable)
-                
+
                 """)
                 return true
         }
@@ -206,9 +208,9 @@ actor DeviceConnectionManager {
     static func resolveCandidateTunnels(from interfaces: Set<NetInfo>) -> [TunnelNetInfo] {
         interfaces
             .compactMap { $0 as? TunnelNetInfo }
-            .filter { 
-                $0.tunnelType == .utun && 
-                !$0.interfaceAddresses.v4.isEmpty && $0.interfaceAddresses.v6.isEmpty 
+            .filter {
+                $0.tunnelType == .utun &&
+                !$0.interfaceAddresses.v4.isEmpty && $0.interfaceAddresses.v6.isEmpty
             }
             .sorted { $0.name < $1.name }
     }

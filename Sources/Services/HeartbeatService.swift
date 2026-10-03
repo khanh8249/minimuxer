@@ -25,7 +25,7 @@ final internal class HeartbeatService {
         self.proxyServer = proxyServer
         self.endpoint = endpoint
     }
-    
+
     private actor MutableState {
         var running = false
         var taskActive = false
@@ -55,14 +55,15 @@ final internal class HeartbeatService {
 
     var lastBeatSuccessful = false
 
-    // Start the heartbeat loop. ignored if a task is already active.
+    private var heartbeatTask: Task<Void, Never>?
+
     func start() async {
         guard await state.tryStart() else {
             return
         }
 
         verboseLog("[minimuxer] Starting heartbeat task...")
-        Task.detached { [weak self] in
+        let task = Task.detached { [weak self] in
             guard let self = self else { return }
             verboseLog("[minimuxer] heartbeat-task: started")
 
@@ -72,12 +73,14 @@ final internal class HeartbeatService {
             self.lastBeatSuccessful = false
             verboseLog("[minimuxer] heartbeat-task: stopped")
         }
+        self.heartbeatTask = task
     }
 
-    // Signal the heartbeat task to stop. will exit on next iteration.
     func stop() async {
         await state.stop()
         lastBeatSuccessful = false
+        heartbeatTask?.cancel()
+        heartbeatTask = nil
         verboseLog("[minimuxer] HeartbeatService stop requested")
     }
 
@@ -95,6 +98,7 @@ final internal class HeartbeatService {
     private func heartbeatLoop() async {
         if self.gateway.requiresUsbmuxd {
             while !self.proxyServer.isListening {
+                if Task.isCancelled { return }
                 logIfNeeded("Waiting for usbmuxd to be ready...", isVerbose: true)
                 try? await Task.sleep(nanoseconds: sleepNs)
             }
@@ -103,7 +107,7 @@ final internal class HeartbeatService {
 
         var currentInterval: UInt64 = MinimuxerConstants.heartbeatInterval
 
-        while await state.running {
+        while await state.running && !Task.isCancelled {
             let tunnelPeerIp: String
             do {
                 tunnelPeerIp = try await self.endpoint.ip()
@@ -113,8 +117,7 @@ final internal class HeartbeatService {
                 try? await Task.sleep(nanoseconds: sleepNs)
                 continue
             }
-            
-            // verify tunnel/device reachability first
+
             let targetPort = self.gateway.servicePort
             if !NetworkUtils.testTCP(ip: tunnelPeerIp, port: targetPort) {
                 logIfNeeded("device IP not reachable, waiting...", isVerbose: true)

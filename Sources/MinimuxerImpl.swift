@@ -16,6 +16,10 @@ private enum MinimuxerStatus{
     case started, inprogress, stopped
 }
 
+private let kHeartbeatInitialTimeoutSeconds: TimeInterval = 10.0
+private let kEndpointReadyTimeoutSeconds: TimeInterval = 8.0
+private let kEndpointReadyPollIntervalNs: UInt64 = 500_000_000
+
 final internal class MinimuxerImpl: MinimuxerAPI {
     public let statusSubject = PassthroughSubject<Result<Bool, MinimuxerError>, Never>()
     public var statusPublisher: AnyPublisher<Result<Bool, MinimuxerError>, Never> {
@@ -99,7 +103,7 @@ final internal class MinimuxerImpl: MinimuxerAPI {
     
     func bindConnectionConfig(_ binding: ConnectionConfigBinding) async {
         await self.connectionManager.bindConnectionConfig(binding)
-        await self.network.refreshEndpoint()
+        await self.network.refreshEndpoint(force: false)
     }
     
     func isReady(withNetworkCheck: Bool, withDDIMountCheck: Bool) async -> Result<Bool, MinimuxerError> {
@@ -112,6 +116,16 @@ final internal class MinimuxerImpl: MinimuxerAPI {
         if currentStatus != .started {
             debugLog("[minimuxer] minimuxer not ready: minimuxer has not been started")
             return .failure(.notStarted("Minimuxer has not been started"))
+        }
+
+        if !self.heartbeat.lastBeatSuccessful {
+            debugLog("[minimuxer] minimuxer not ready: heartbeat has not succeeded yet")
+            return .failure(.noDevice("Heartbeat has not succeeded yet"))
+        }
+
+        if await !self.endpoint.isInitialized {
+            debugLog("[minimuxer] minimuxer not ready: device endpoint not initialized")
+            return .failure(.noDevice("Device endpoint has not been resolved yet"))
         }
 
         // check connection status first
@@ -226,7 +240,11 @@ final internal class MinimuxerImpl: MinimuxerAPI {
                 try await action()
             }
         } catch let err as DeviceGatewayError {
-            throw err.asMinimuxerError(protocol: activeProtocol, catchAll: catchAll)
+            throw err.asMinimuxerError(
+                protocol: activeProtocol,
+                heartbeatHasSucceeded: self.heartbeat.lastBeatSuccessful,
+                catchAll: catchAll
+            )
         } catch {
             throw (error as? MinimuxerError) ?? catchAll("\(error)")
         }
@@ -308,7 +326,12 @@ final internal class MinimuxerImpl: MinimuxerAPI {
             // start our fake usbmuxd server for clients if required
             try await restartMuxerServer()
         }
-        
+
+        await self.network.refreshEndpoint(force: true)
+        try await awaitEndpointReady()
+        await self.heartbeat.start()
+        try await awaitFirstHeartbeat()
+
         // mark ready!
         await state.with{
             $0.status = .started
@@ -316,6 +339,8 @@ final internal class MinimuxerImpl: MinimuxerAPI {
     }
 
     func stop() async throws(MinimuxerError) {
+        await self.heartbeat.stop()
+
         // actor serialization scope
         let oldTask = await state.with { state -> Task<Bool, Error>? in
             state.status = .inprogress  // mark inprogress
@@ -337,6 +362,59 @@ final internal class MinimuxerImpl: MinimuxerAPI {
         }
     }
     
+    private func awaitEndpointReady(
+        timeout: TimeInterval = kEndpointReadyTimeoutSeconds
+    ) async throws(MinimuxerError) {
+        let deadline = Date().addingTimeInterval(timeout)
+
+        verboseLog("[minimuxer] Awaiting device endpoint (timeout: \(timeout)s)...")
+
+        while Date() < deadline {
+            if Task.isCancelled {
+                throw MinimuxerError.close("start() cancelled while awaiting endpoint")
+            }
+
+            if await self.endpoint.isInitialized {
+                verboseLog("[minimuxer] Device endpoint ready")
+                return
+            }
+
+            await self.network.refreshEndpoint(force: true)
+
+            if await self.endpoint.isInitialized {
+                verboseLog("[minimuxer] Device endpoint ready (after force refresh)")
+                return
+            }
+
+            try? await Task.sleep(nanoseconds: kEndpointReadyPollIntervalNs)
+        }
+
+        throw MinimuxerError.noDevice("Device endpoint was not resolved within \(timeout)s")
+    }
+
+    private func awaitFirstHeartbeat(
+        timeout: TimeInterval = kHeartbeatInitialTimeoutSeconds
+    ) async throws(MinimuxerError) {
+        let deadline = Date().addingTimeInterval(timeout)
+
+        verboseLog("[minimuxer] Awaiting first heartbeat (timeout: \(timeout)s)...")
+
+        while Date() < deadline {
+            if Task.isCancelled {
+                throw MinimuxerError.close("start() cancelled while awaiting heartbeat")
+            }
+
+            if self.heartbeat.lastBeatSuccessful {
+                verboseLog("[minimuxer] First heartbeat succeeded")
+                return
+            }
+
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
+
+        throw MinimuxerError.noDevice("Heartbeat did not succeed within \(timeout)s")
+    }
+
     private func restartWith(pairingFile: String, op: String) async throws(MinimuxerError) {
         let (mountPath, preferred) = await state.with { ($0.lastDocsPath, $0.preferredProtocol) }
         guard let mountPath else {
@@ -357,7 +435,7 @@ final internal class MinimuxerImpl: MinimuxerAPI {
             throw MinimuxerError.invalidPairing(protocol: activeProtocol, reason: "No existing pairing file found in gateway during restart")
         }
         try await restartWith(pairingFile: pairingFile, op: "restart")
-        await self.network.refreshEndpoint()
+        await self.network.refreshEndpoint(force: true)
     }
 
     func reinitializePairingData(pairingFile: String) async throws(MinimuxerError) {
