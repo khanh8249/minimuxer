@@ -88,8 +88,8 @@ final internal class NetworkObserverService: NetworkObserverAPI, @unchecked Send
         await onNetworkChanged?()
     }
 
-        await refreshEndpoint(force: false)
     func refreshEndpoint() async {
+        await refreshEndpoint(force: false)
     }
 
     func refreshEndpoint(force: Bool) async {
