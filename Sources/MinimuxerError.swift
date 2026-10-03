@@ -142,11 +142,18 @@ extension DeviceGatewayError {
         (code == .connectionFailed || code == .noConnection) && !isVPNDrop
     }
 
-    func asMinimuxerError(protocol activeProtocol: PairingProtocol, catchAll: (String) -> MinimuxerError) -> MinimuxerError {
+    func asMinimuxerError(
+        protocol activeProtocol: PairingProtocol,
+        heartbeatHasSucceeded: Bool = true,
+        catchAll: (String) -> MinimuxerError
+    ) -> MinimuxerError {
         if code == .invalidPairingFile {
             return .invalidPairing(protocol: activeProtocol, reason: reason)
         }
         if isVPNDrop {
+            if !heartbeatHasSucceeded {
+                return .noDevice("Lockdown session lost before heartbeat stabilized: \(reason)")
+            }
             return .invalidVPN(reason)
         }
         return catchAll(reason)
