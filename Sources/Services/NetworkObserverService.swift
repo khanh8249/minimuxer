@@ -88,7 +88,6 @@ final internal class NetworkObserverService: NetworkObserverAPI, @unchecked Send
         await onNetworkChanged?()
     }
 
-    //  CHANGED: thm param `force`  bypass caching khi cn.
     func refreshEndpoint() async {
         await refreshEndpoint(force: false)
     }
@@ -98,7 +97,6 @@ final internal class NetworkObserverService: NetworkObserverAPI, @unchecked Send
         verboseLog("[minimuxer] [net] refreshing interfaces list and peers (force: \(force))")
         let ifacesChanged = await manager.refresh(force: force)
 
-        //  CHANGED: cho php i tip khi force = true, ngay c khi ifaces khng i.
         guard ifacesChanged || force else {
             return
         }
@@ -133,7 +131,6 @@ final internal class NetworkObserverService: NetworkObserverAPI, @unchecked Send
 
                     if let peer = effectiveIp {
                         verboseLog("[minimuxer] [net] update device IP with effective tunnel peer: '\(effectivePeer)'")
-                        //  CHANGED: ch notify proxy khi gi tr thay i thc s.
                         let changed = await self.endpoint.update(peer)
                         if changed {
                             self.proxyServer.notifyDeviceAttached(tunnelPeerIp: peer)

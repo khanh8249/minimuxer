@@ -3,7 +3,7 @@
 //  Minimuxer
 //
 //  Created by Magesh K on 4/7/26.
-//  Copyright  2026 SideStore. All rights reserved.
+//  Copyright © 2026 SideStore. All rights reserved.
 //
 
 import Foundation
@@ -16,13 +16,11 @@ private enum MinimuxerStatus {
     case started, inprogress, stopped
 }
 
-// MARK: - Local constants (khng ph thuc MinimuxerCommon)
-/// Timeout ch heartbeat u tin sau khi start gateway (giy).
-/// iOS 16 cn 2-4s  Lockdown session n nh; t 10s cho an ton.
+/// Heartbeat startup timeout in seconds.
+/// iOS 16 needs 2-4s for Lockdown to stabilize; 10s is safe.
 private let kHeartbeatInitialTimeoutSeconds: TimeInterval = 10.0
-/// Timeout ch device endpoint (tunnel peer IP) c resolve (giy).
+/// Endpoint resolution timeout in seconds.
 private let kEndpointReadyTimeoutSeconds: TimeInterval = 8.0
-/// Poll interval khi ch endpoint.
 private let kEndpointReadyPollIntervalNs: UInt64 = 500_000_000  // 500ms
 
 final internal class MinimuxerImpl: MinimuxerAPI {
@@ -105,8 +103,7 @@ final internal class MinimuxerImpl: MinimuxerAPI {
         await self.connectionManager.getPreferredConnectionMode()
     }
 
-    //  CHANGED: bindConnectionConfig  gi force = false v gateway c th cha init.
-    // Force refresh tht s s din ra trong start() sau khi gateway.start() hon tt.
+    // Actual force refresh happens in start() after gateway init.
     func bindConnectionConfig(_ binding: ConnectionConfigBinding) async {
         await self.connectionManager.bindConnectionConfig(binding)
         await self.network.refreshEndpoint(force: false)
@@ -126,7 +123,6 @@ final internal class MinimuxerImpl: MinimuxerAPI {
             return .failure(.notStarted("Minimuxer has not been started"))
         }
 
-        //  NEW: Heartbeat gate  chy TRC mi check khc.
         if !self.heartbeat.lastBeatSuccessful {
             debugLog("[minimuxer] minimuxer not ready: heartbeat has not succeeded yet")
             return .failure(.noDevice(
@@ -134,7 +130,6 @@ final internal class MinimuxerImpl: MinimuxerAPI {
             ))
         }
 
-        //  NEW: Endpoint gate  cn c device IP trc khi cho php thao tc.
         let endpointReady = await self.endpoint.isInitialized
         if !endpointReady {
             debugLog("[minimuxer] minimuxer not ready: device endpoint not initialized")
@@ -245,7 +240,6 @@ final internal class MinimuxerImpl: MinimuxerAPI {
         return .success(true)
     }
 
-    //  CHANGED: truyn heartbeatHasSucceeded  phn loi UnexpectedEof chnh xc.
     private func runWithChecks<T: Sendable>(
         _ context: String,
         catchAll: @escaping (String) -> MinimuxerError,
@@ -341,18 +335,13 @@ final internal class MinimuxerImpl: MinimuxerAPI {
             try await restartMuxerServer()
         }
 
-        //  NEW: Force refresh endpoint SAU KHI gateway  init.
-        // Lc ny gateway.pairingFileType v gi tr
-        // ng  tcpProbe trong refreshEndpoint s hot ng chnh xc.
+        // gateway.pairingFileType and port are now valid here,
         await self.network.refreshEndpoint(force: true)
 
-        //  NEW: Gate  ch endpoint sn sng (force refresh theo chu k).
         try await awaitEndpointReady()
 
-        //  NEW: start heartbeat TRC khi bo ready.
         await self.heartbeat.start()
 
-        //  NEW: Gate  ch heartbeat u tin thnh cng.
         try await awaitFirstHeartbeat()
 
         // mark ready!
@@ -362,7 +351,6 @@ final internal class MinimuxerImpl: MinimuxerAPI {
     }
 
     func stop() async throws(MinimuxerError) {
-        //  NEW: dng heartbeat trc tin.
         await self.heartbeat.stop()
 
         // actor serialization scope
@@ -388,7 +376,6 @@ final internal class MinimuxerImpl: MinimuxerAPI {
         }
     }
 
-    //  NEW: ch endpoint sn sng, force refresh theo chu k.
     private func awaitEndpointReady(
         timeout: TimeInterval = kEndpointReadyTimeoutSeconds
     ) async throws(MinimuxerError) {
@@ -406,10 +393,10 @@ final internal class MinimuxerImpl: MinimuxerAPI {
                 return
             }
 
-            // Force refresh  tcpProbe chy li (bypass caching trong manager)
+            // Force refresh so tcpProbe re-runs (bypass manager cache)
             await self.network.refreshEndpoint(force: true)
 
-            // Check li ngay sau refresh
+            // Check again right after refresh
             if await self.endpoint.isInitialized {
                 verboseLog("[minimuxer] Device endpoint ready (after force refresh)")
                 return
@@ -425,7 +412,6 @@ final internal class MinimuxerImpl: MinimuxerAPI {
         )
     }
 
-    //  NEW: ch heartbeat u tin thnh cng.
     private func awaitFirstHeartbeat(
         timeout: TimeInterval = kHeartbeatInitialTimeoutSeconds
     ) async throws(MinimuxerError) {
@@ -460,7 +446,7 @@ final internal class MinimuxerImpl: MinimuxerAPI {
             let activeProtocol = self.gateway.pairingFileType
             throw MinimuxerError.mount(protocol: activeProtocol, reason: "start() should be invoked before requesting \(op). cause: lastDocsPath is nil")
         }
-        // stop() s t dng heartbeat; start() s t start li.
+        // stop() halts heartbeat; start() restarts it.
         try await stop()
         try await start(pairingFile: pairingFile, mountPath: mountPath, preferred: preferred)
     }
@@ -475,7 +461,6 @@ final internal class MinimuxerImpl: MinimuxerAPI {
             throw MinimuxerError.invalidPairing(protocol: activeProtocol, reason: "No existing pairing file found in gateway during restart")
         }
         try await restartWith(pairingFile: pairingFile, op: "restart")
-        //  CHANGED: force refresh sau restart.
         await self.network.refreshEndpoint(force: true)
     }
 

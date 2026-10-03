@@ -3,7 +3,7 @@
 //  Minimuxer
 //
 //  Created by Magesh K on 16/08/26.
-//  Copyright  2026 SideStore. All rights reserved.
+//  Copyright © 2026 SideStore. All rights reserved.
 //
 
 import Foundation
@@ -89,7 +89,6 @@ actor DeviceConnectionManager {
         return reachable
     }
 
-    //  CHANGED: thm param `force`  bypass short-circuit.
     @discardableResult
     func refresh(quietScan: Bool = false, force: Bool = false) async -> Bool {
         let connectionMode = getPreferredConnectionMode()
@@ -128,7 +127,6 @@ actor DeviceConnectionManager {
                 let isDerivedIpUnchanged = lastDerivedPeer == derivedPeerIp && lastDerivedPeerMask == derivedPeerSubnetMask
                 let isReportedIpUnchanged = lastReportedPeer == reportedPeerIp
 
-                //  CHANGED: b qua short-circuit khi force = true.
                 if !force && lastConnectionMode == connectionMode &&
                     lastInterfacesCache == interfacesCache &&
                     isOverrideIpUnchanged && isDerivedIpUnchanged && isReportedIpUnchanged &&
@@ -172,7 +170,6 @@ actor DeviceConnectionManager {
                 let serverIp = (rawServerIp?.isEmpty ?? true) ? nil : rawServerIp
                 let reachable = await tcpProbe(serverIp)
 
-                //  CHANGED: b qua short-circuit khi force = true.
                 if !force && self.lastConnectionMode == connectionMode && serverIp == remoteServerIp && reachable == isRemoteServerIpReachable {
                     debugLog("[minimuxer] [iface] no remote server state changes detected, skipping refresh")
                     return false

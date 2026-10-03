@@ -53,11 +53,9 @@ final internal class HeartbeatService {
     private let state = MutableState()
     private var lastErrorDescription: String?
 
-    //  CHANGED: property ghi bi heartbeat task, c bi MinimuxerImpl.
-    // Ch c 1 writer (heartbeat task), reader ch poll bool  chp nhn c.
+    // Single writer (heartbeat task); readers poll a bool.
     var lastBeatSuccessful = false
 
-    //  NEW: task handle  cancel sch khi stop().
     private var heartbeatTask: Task<Void, Never>?
 
 
@@ -118,7 +116,6 @@ final internal class HeartbeatService {
 
         var currentInterval: UInt64 = MinimuxerConstants.heartbeatInterval
 
-        //  CHANGED: thm Task.isCancelled  thot sch khi stop() cancel task.
         while await state.running && !Task.isCancelled {
             let tunnelPeerIp: String
             do {

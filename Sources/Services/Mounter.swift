@@ -66,7 +66,7 @@ final internal class Mounter {
 
     private func performMount(major: Int, iosVersion: String?, dmgDocsPath: String) async throws {
         if major < 17, let iosVersion {
-            // Pre-17: lockdown only  load DMG + signature, mount via imagemounter
+            // Pre-17: lockdown only — load DMG + signature, mount via imagemounter
             let (dmgData, sigData) = try loadPre17Image(iosVersion: iosVersion, dmgDocsPath: dmgDocsPath)
             verboseLog("[minimuxer] Uploading and mounting image (dmg=\(dmgData.count) bytes, sig=\(sigData.count) bytes)...")
             try await self.gateway.mountDeveloperImage(image: dmgData, signature: sigData)

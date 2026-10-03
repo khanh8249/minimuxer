@@ -3,7 +3,7 @@
 //  Minimuxer
 //
 //  Created by Magesh K on 12/8/26.
-//  Copyright  2026 SideStore. All rights reserved.
+//  Copyright © 2026 SideStore. All rights reserved.
 //
 
 import Foundation
@@ -44,7 +44,7 @@ public enum EMProxyError: Error, LocalizedError, CustomStringConvertible, Equata
             return "Failed to join EMProxy loopback thread"
         case .handshakeClientNotConfigured:
             return "EMProxy WireGuard VPN handshake client not configured"
-        case.unknownError(let code):
+        case .unknownError(let code):
             return "EMProxy error code: \(code)"
         }
     }

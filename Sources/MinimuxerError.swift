@@ -3,7 +3,7 @@
 //  Minimuxer
 //
 //  Created by Magesh K on 4/7/26.
-//  Copyright  2026 SideStore. All rights reserved.
+//  Copyright © 2026 SideStore. All rights reserved.
 //
 
 import Foundation
@@ -142,9 +142,8 @@ extension DeviceGatewayError {
         (code == .connectionFailed || code == .noConnection) && !isVPNDrop
     }
 
-    //  CHANGED: thm param `heartbeatHasSucceeded`  phn loi UnexpectedEof.
-    // Nu heartbeat cha tng OK  y l h qu ca Lockdown session cht,
-    // KHNG phi VPN hng. Classify l .noDevice  caller retry.
+    // If heartbeat never succeeded, this is more likely a dead
+    // Lockdown session than a VPN drop. Classify as .noDevice so caller retries.
     func asMinimuxerError(
         protocol activeProtocol: PairingProtocol,
         heartbeatHasSucceeded: Bool = true,

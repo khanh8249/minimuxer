@@ -4,7 +4,7 @@
 //
 //  Original Rust Implementation by @jkcoxson
 //  Swift Port created by Magesh K on 02/03/26.
-//  Copyright  2026 SideStore. All rights reserved.
+//  Copyright © 2026 SideStore. All rights reserved.
 //
 
 import Foundation
@@ -28,7 +28,6 @@ actor DeviceEndpoint {
         return ip
     }
 
-    //  CHANGED: return Bool = true nu gi tr thay i.
     @discardableResult
     func update(_ newIP: String) -> Bool {
         let changed = (ipAddr != newIP)
@@ -38,7 +37,6 @@ actor DeviceEndpoint {
         return changed
     }
 
-    //  CHANGED: return Bool = true nu trc  c gi tr.
     @discardableResult
     func clear() -> Bool {
         let wasSet = (ipAddr != nil)
