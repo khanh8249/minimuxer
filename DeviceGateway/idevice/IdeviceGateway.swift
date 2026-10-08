@@ -128,11 +128,7 @@ public final class IdeviceGateway: BaseDeviceGateway, DeviceGatewayAPI, @uncheck
 
     public override func setLogging(_ enabled: Bool) {
         let lowerBoundLevel = IdeviceLogLevel(rawValue: 0)
-        #if DEBUG
-        let upperBoundLevel = IdeviceLogLevel(rawValue: 5)
-        #else
         let upperBoundLevel = IdeviceLogLevel(rawValue: enabled ? 1 : 0)
-        #endif
         // set actual logging
         idevice_init_logger(upperBoundLevel, lowerBoundLevel, nil)
         super.setLogging(enabled)
@@ -142,10 +138,6 @@ public final class IdeviceGateway: BaseDeviceGateway, DeviceGatewayAPI, @uncheck
         debugLog("[IdeviceGateway] start() called, pairingFileContent length: \(pairingFileContent.count)")
         cleanup()
         
-        #if DEBUG
-        setLogging(true)
-        #endif
-
         let parsedPairingFile: any PairingFile
         do {
             parsedPairingFile = try PairingFileParser.parse(content: pairingFileContent, preferred: preferred)
@@ -1651,6 +1643,8 @@ public final class IdeviceGateway: BaseDeviceGateway, DeviceGatewayAPI, @uncheck
                   let dict = try? PropertyListSerialization.propertyList(from: xml, options: [], format: nil) as? [String: Any]
             else { continue }
             
+            debugLog("[IdeviceGateway] isDDIMounted() mounted image entry: \(dict)")
+
             let mountPath = dict["MountPath"] as? String
             let imageType = dict["PersonalizedImageType"] as? String
             let diskType = dict["DiskImageType"] as? String
@@ -1659,7 +1653,16 @@ public final class IdeviceGateway: BaseDeviceGateway, DeviceGatewayAPI, @uncheck
             let imageTypeMatches = imageType == "DeveloperDiskImage"
             let diskTypeMatches = (diskType == nil || diskType == "Personalized")
             
+            // iOS 17+ personalized DDI
             if mountPathMatches && imageTypeMatches && diskTypeMatches {
+                return true
+            }
+
+            // pre-17 (legacy) Developer disk image: mounted at /Developer, ImageType "Developer".
+            // Without this, an already-mounted legacy DDI is reported as "not mounted" and the
+            // subsequent re-mount fails with ImageMountFailed.
+            let legacyImageType = (dict["ImageType"] as? String) ?? diskType
+            if mountPath == "/Developer" || legacyImageType == "Developer" {
                 return true
             }
         }
