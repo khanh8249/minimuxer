@@ -1613,8 +1613,40 @@ public final class IdeviceGateway: BaseDeviceGateway, DeviceGatewayAPI, @uncheck
             cleanup: image_mounter_free,
             serviceName: "image mounter"
         ) { client in
-            try isDeveloperDiskImageMounted(mounterClient: client)
+            // Personalized DDI (iOS 17+)
+            if try isDeveloperDiskImageMounted(mounterClient: client) {
+                debugLog("[IdeviceGateway] isDDIMounted() personalized DDI is mounted")
+                return true
+            }
+            // Classic Developer DDI (iOS 16 and below)
+            if isLegacyDeveloperImageMounted(mounterClient: client) {
+                debugLog("[IdeviceGateway] isDDIMounted() legacy Developer DDI is mounted")
+                return true
+            }
+            debugLog("[IdeviceGateway] isDDIMounted() no DDI is mounted")
+            return false
         }
+    }
+
+    // Detects the classic (non-personalized) Developer disk image used by iOS 16 and below.
+    // The device answers LookupImage("Developer") with an ImageSignature only when it is mounted.
+    private func isLegacyDeveloperImageMounted(mounterClient: OpaquePointer) -> Bool {
+        var sigPtr: UnsafeMutablePointer<UInt8>? = nil
+        var sigLen: Int = 0   // if the compiler complains about Int vs UInt here, change Int to UInt
+        let err = "Developer".withCString { typePtr in
+            image_mounter_lookup_image(mounterClient, typePtr, &sigPtr, &sigLen)
+        }
+        if let err = err {
+            // An error here means "not mounted" (or lookup unsupported)
+            verboseLog("[IdeviceGateway] isLegacyDeveloperImageMounted() lookup returned error: \(getErrorMessage(from: err))")
+            safeFreeError(err)
+            return false
+        }
+        let mounted = sigLen > 0
+        if let p = sigPtr {
+            idevice_data_free(p, UInt(sigLen))
+        }
+        return mounted
     }
 
     private func isDeveloperDiskImageMounted(mounterClient: OpaquePointer) throws -> Bool {
@@ -1686,6 +1718,12 @@ public final class IdeviceGateway: BaseDeviceGateway, DeviceGatewayAPI, @uncheck
             cleanup: image_mounter_free,
             serviceName: "image mounter"
         ) { client in
+            // 0. Skip everything if a classic Developer image is already mounted
+            if self.isLegacyDeveloperImageMounted(mounterClient: client) {
+                debugLog("[IdeviceGateway] mountDeveloperImage() Developer image already mounted. Bypassing upload and mount.")
+                return
+            }
+
             // 1. Upload
             try image.withUnsafeBytes { imgBuf in
                 try signature.withUnsafeBytes { sigBuf in
