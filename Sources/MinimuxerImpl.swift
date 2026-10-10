@@ -560,6 +560,23 @@ final internal class MinimuxerImpl: MinimuxerAPI {
         try await runWithChecks("while debugging App", catchAll: MinimuxerError.createDebug) {
             try await self.ensureDDIMounted()
 
+            // FIX: ensure usbmuxd proxy listening.
+            // connectDebugProxy uses the usbmuxd C API, which requires the fake
+            // usbmuxd proxy to be listening on 127.0.0.1:27015 — even in .lockdown mode
+            // where requiresUsbmuxd is false.
+            if !self.proxyServer.isListening {
+                let udid = (self.gateway.pairingDataDict?["UDID"] as? String)
+                    ?? (try await self.fetchUDID())
+                try await self.proxyServer.start(udid: udid)
+                var waited: UInt64 = 0
+                while !self.proxyServer.isListening && waited < 3_000_000_000 {
+                    try? await Task.sleep(nanoseconds: 100_000_000)
+                    waited += 100_000_000
+                }
+                verboseLog("[minimuxer] usbmuxd proxy started (listening=\(self.proxyServer.isListening))")
+            }
+
+
             // FIX: wait for heartbeat to stabilize before hitting gateway.
             // On iOS 16, heartbeat.start() returns immediately (detached task),
             // so lastBeatSuccessful may still be false when JIT checks isReady().
@@ -586,6 +603,23 @@ final internal class MinimuxerImpl: MinimuxerAPI {
     func attachDebugger(pid: UInt32) async throws(MinimuxerError) {
         try await runWithChecks("while debugging process", catchAll: MinimuxerError.createDebug) {
             try await self.ensureDDIMounted()
+
+            // FIX: ensure usbmuxd proxy listening.
+            // connectDebugProxy uses the usbmuxd C API, which requires the fake
+            // usbmuxd proxy to be listening on 127.0.0.1:27015 — even in .lockdown mode
+            // where requiresUsbmuxd is false.
+            if !self.proxyServer.isListening {
+                let udid = (self.gateway.pairingDataDict?["UDID"] as? String)
+                    ?? (try await self.fetchUDID())
+                try await self.proxyServer.start(udid: udid)
+                var waited: UInt64 = 0
+                while !self.proxyServer.isListening && waited < 3_000_000_000 {
+                    try? await Task.sleep(nanoseconds: 100_000_000)
+                    waited += 100_000_000
+                }
+                verboseLog("[minimuxer] usbmuxd proxy started (listening=\(self.proxyServer.isListening))")
+            }
+
             
             // FIX: wait for heartbeat to stabilize before stopping it for debug.
             let hbReady = await self.heartbeat.waitUntilReady(timeout: 10.0)
