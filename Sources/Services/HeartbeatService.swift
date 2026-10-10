@@ -18,7 +18,7 @@ final internal class HeartbeatService {
     let proxyServer: UsbmuxdProxyServer
     let endpoint: DeviceEndpoint
 
-    private let sleepNs: UInt64 = MinimuxerConstants.heartbeatInterval * 1_000_000
+    private let sleepNs: UInt64 = MinimuxerConstants.heartbeatInterval * 1_000_000_000
 
     init(deviceProvider: DeviceProvider, proxyServer: UsbmuxdProxyServer, endpoint: DeviceEndpoint) {
         self.deviceProvider = deviceProvider
@@ -161,8 +161,15 @@ final internal class HeartbeatService {
             } catch {
                 logIfNeeded("Heartbeat failed: \(error)")
                 lastBeatSuccessful = false
-                try? await Task.sleep(nanoseconds: sleepNs)
             }
+
+            // FIX: sleep between beats on BOTH success and failure paths.
+            // Previously missing on success -> runaway loop -> lockdownd session thrashing
+            // -> debugserver failed with SessionInactive on iOS 16.
+            // Clamp to [5, 60] seconds to prevent runaway loop and battery drain.
+            let clampedSeconds = min(max(currentInterval, 5), 60)
+            if Task.isCancelled { return }
+            try? await Task.sleep(nanoseconds: UInt64(clampedSeconds) * 1_000_000_000)
         }
     }
 }
