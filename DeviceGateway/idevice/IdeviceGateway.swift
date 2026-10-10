@@ -1095,6 +1095,36 @@ public final class IdeviceGateway: BaseDeviceGateway, DeviceGatewayAPI, @uncheck
             cleanup: lockdownd_client_free,
             serviceName: "lockdownd"
         ) { lockdownClient in
+            // FIX: iOS 16 requires an explicit lockdownd_start_session before
+            // calling lockdownd_start_service for privileged services.
+            // Without this, lockdownd returns SessionInactive.
+            if self.pairingFileType == .lockdown, let pairingFileData = self.pairingFileData {
+                var pf: OpaquePointer? = nil
+                let parseErr = pairingFileData.withUnsafeBytes { buf in
+                    idevice_pairing_file_from_bytes(buf.baseAddress?.assumingMemoryBound(to: UInt8.self), UInt(pairingFileData.count), &pf)
+                }
+                if let parseErr = parseErr {
+                    defer { safeFreeError(parseErr) }
+                    let msg = self.getErrorMessage(from: parseErr)
+                    throw IdeviceGatewayError(.invalidPairingFile, reason: "Failed to parse pairing file for debugserver: \(msg)")
+                }
+                if let pf = pf {
+                    defer { idevice_pairing_file_free(pf) }
+                    verboseLog("[IdeviceGateway] startDebugserverService starting lockdownd session")
+                    let sessionErr = lockdownd_start_session(lockdownClient, pf)
+                    if let sessionErr = sessionErr {
+                        defer { safeFreeError(sessionErr) }
+                        let msg = self.getErrorMessage(from: sessionErr)
+                        debugLog("[IdeviceGateway] startDebugserverService lockdownd_start_session failed: \(msg)")
+                        if self.isPairingError(sessionErr) {
+                            throw IdeviceGatewayError(.invalidPairingFile, reason: "Lockdown session failed (pairing invalid): \(msg)")
+                        } else {
+                            throw IdeviceGatewayError(.connectionFailed, reason: "Lockdown session failed for debugserver: \(msg)")
+                        }
+                    }
+                }
+            }
+
             verboseLog("[IdeviceGateway] starting debugserver service")
             let err = "com.apple.debugserver".withCString { serviceNamePtr in
                 return lockdownd_start_service(lockdownClient, serviceNamePtr, &port, &ssl)
