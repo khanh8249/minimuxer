@@ -1125,15 +1125,32 @@ public final class IdeviceGateway: BaseDeviceGateway, DeviceGatewayAPI, @uncheck
                 }
             }
 
-            verboseLog("[IdeviceGateway] starting debugserver service")
-            let err = "com.apple.debugserver".withCString { serviceNamePtr in
-                return lockdownd_start_service(lockdownClient, serviceNamePtr, &port, &ssl)
+            // FIX: try DVTSecureSocketProxy first (iOS 13.6+), fallback to legacy.
+            // Based on libimobiledevice commit 98056a8.
+            let serviceNames = [
+                "com.apple.debugserver.DVTSecureSocketProxy",
+                "com.apple.debugserver"
+            ]
+            var lastStartError: IdeviceGatewayError? = nil
+            var started = false
+            for (idx, serviceName) in serviceNames.enumerated() {
+                verboseLog("[IdeviceGateway] attempting to start service: \(serviceName) (\(idx + 1)/\(serviceNames.count))")
+                let err = serviceName.withCString { serviceNamePtr in
+                    return lockdownd_start_service(lockdownClient, serviceNamePtr, &port, &ssl)
+                }
+                if let err = err {
+                    let msg = self.getErrorMessage(from: err)
+                    debugLog("[IdeviceGateway] failed to start \(serviceName): \(msg)")
+                    defer { idevice_error_free(err) }
+                    lastStartError = IdeviceGatewayError(.serviceError, reason: "Failed to start \(serviceName): (\(msg))")
+                    continue
+                }
+                debugLog("[IdeviceGateway] debugserver started using: \(serviceName), port: \(port), ssl: \(ssl)")
+                started = true
+                break
             }
-            if let err = err {
-                let msg = self.getErrorMessage(from: err)
-                debugLog("[IdeviceGateway] failed to start debugserver: \(msg)")
-                defer { idevice_error_free(err) }
-                throw IdeviceGatewayError(.serviceError, reason: "Failed to start debugserver service, error: (\(msg))")
+            if !started {
+                throw lastStartError ?? IdeviceGatewayError(.serviceError, reason: "Failed to start debugserver with all service names")
             }
         }
 
