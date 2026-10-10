@@ -1195,7 +1195,32 @@ public final class IdeviceGateway: BaseDeviceGateway, DeviceGatewayAPI, @uncheck
         debugLog("[IdeviceGateway] launchAppPre17() called for appId: \(appId)")
         let (container, bundlePath, _) = try getAppPaths(appId: appId)
 
-        let port = try startDebugserverService()
+        // FIX: iOS 16 lockdownd needs time to fully close the previous session
+        // (from getAppPaths/isDDIMounted) before accepting a new one.
+        // Without this, lockdownd_start_service fails with SessionInactive.
+        Thread.sleep(forTimeInterval: 0.4)
+
+        // FIX: retry startDebugserverService up to 3 times with backoff
+        // to work around iOS 16 lockdownd session-race conditions.
+        var port: UInt16 = 0
+        var lastError: Error? = nil
+        for attempt in 1...3 {
+            do {
+                port = try startDebugserverService()
+                lastError = nil
+                break
+            } catch {
+                lastError = error
+                debugLog("[IdeviceGateway] startDebugserverService attempt \(attempt)/3 failed: \(error)")
+                if attempt < 3 {
+                    Thread.sleep(forTimeInterval: 0.3)
+                }
+            }
+        }
+        if let err = lastError {
+            throw err
+        }
+
         let debugProxyClient = try connectDebugProxy(port: port)
         defer { debug_proxy_free(debugProxyClient) }
 
