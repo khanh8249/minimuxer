@@ -91,6 +91,24 @@ final internal class HeartbeatService {
         verboseLog("[minimuxer] HeartbeatService stop requested")
     }
 
+    // MARK: - Readiness
+
+    /// Wait until the first heartbeat succeeds, or timeout expires.
+    /// Returns true if ready, false on timeout / cancellation.
+    @discardableResult
+    func waitUntilReady(timeout: TimeInterval = 10.0) async -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !lastBeatSuccessful {
+            if Task.isCancelled { return false }
+            if Date() >= deadline {
+                verboseLog("[minimuxer] heartbeat waitUntilReady timed out after \(timeout)s")
+                return false
+            }
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
+        return true
+    }
+
     // MARK: - Internals
 
     private func logIfNeeded(_ message: String, isVerbose: Bool = false) {

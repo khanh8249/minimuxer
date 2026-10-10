@@ -559,6 +559,16 @@ final internal class MinimuxerImpl: MinimuxerAPI {
         func debugApp(appId: String) async throws(MinimuxerError) {
         try await runWithChecks("while debugging App", catchAll: MinimuxerError.createDebug) {
             try await self.ensureDDIMounted()
+
+            // FIX: wait for heartbeat to stabilize before hitting gateway.
+            // On iOS 16, heartbeat.start() returns immediately (detached task),
+            // so lastBeatSuccessful may still be false when JIT checks isReady().
+            let hbReady = await self.heartbeat.waitUntilReady(timeout: 10.0)
+            if !hbReady {
+                debugLog("[minimuxer] debugApp: heartbeat wait timed out")
+                throw MinimuxerError.noDevice("Heartbeat not ready before debugApp")
+            }
+
             
             // FIX: Temporarily stop the heartbeat to release the active lockdown session.
             // This prevents concurrent session conflicts when debugserver attempts to connect on iOS 16.
@@ -576,6 +586,13 @@ final internal class MinimuxerImpl: MinimuxerAPI {
     func attachDebugger(pid: UInt32) async throws(MinimuxerError) {
         try await runWithChecks("while debugging process", catchAll: MinimuxerError.createDebug) {
             try await self.ensureDDIMounted()
+            
+            // FIX: wait for heartbeat to stabilize before stopping it for debug.
+            let hbReady = await self.heartbeat.waitUntilReady(timeout: 10.0)
+            if !hbReady {
+                debugLog("[minimuxer] attachDebugger: heartbeat wait timed out")
+                throw MinimuxerError.noDevice("Heartbeat not ready before attachDebugger")
+            }
             
             // Temporarily stop the heartbeat to release the active lockdown session.
             // This prevents concurrent session conflicts when debugserver attempts to connect on iOS 16.
