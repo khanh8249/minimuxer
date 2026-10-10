@@ -556,9 +556,19 @@ final internal class MinimuxerImpl: MinimuxerAPI {
         }
     }
 
-    func debugApp(appId: String) async throws(MinimuxerError) {
+        func debugApp(appId: String) async throws(MinimuxerError) {
         try await runWithChecks("while debugging App", catchAll: MinimuxerError.createDebug) {
             try await self.ensureDDIMounted()
+            
+            // FIX: Temporarily stop the heartbeat to release the active lockdown session.
+            // This prevents concurrent session conflicts when debugserver attempts to connect on iOS 16.
+            await self.heartbeat.stop()
+            defer { 
+                Task { 
+                    await self.heartbeat.start() 
+                } 
+            }
+            
             try await self.gateway.debugApp(appId: appId)
         }
     }
@@ -566,6 +576,16 @@ final internal class MinimuxerImpl: MinimuxerAPI {
     func attachDebugger(pid: UInt32) async throws(MinimuxerError) {
         try await runWithChecks("while debugging process", catchAll: MinimuxerError.createDebug) {
             try await self.ensureDDIMounted()
+            
+            // Temporarily stop the heartbeat to release the active lockdown session.
+            // This prevents concurrent session conflicts when debugserver attempts to connect on iOS 16.
+            await self.heartbeat.stop()
+            defer { 
+                Task { 
+                    await self.heartbeat.start() 
+                } 
+            }
+            
             try await self.gateway.debugProcess(pid: pid)
         }
     }

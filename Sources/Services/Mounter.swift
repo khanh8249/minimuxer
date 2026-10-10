@@ -65,7 +65,7 @@ final internal class Mounter {
     }
 
     private func performMount(major: Int, iosVersion: String?, dmgDocsPath: String) async throws {
-        if major < 16, let iosVersion {
+        if major < 17, let iosVersion {
             // iOS 15 and below: legacy DDI mount (DMG + signature)
             let (dmgData, sigData) = try loadPre17Image(iosVersion: iosVersion, dmgDocsPath: dmgDocsPath)
             verboseLog("[minimuxer] Uploading and mounting image (dmg=\(dmgData.count) bytes, sig=\(sigData.count) bytes)...")
